@@ -44,6 +44,7 @@ namespace Theo
             Random ran = new Random();
             var botClient = new TelegramBotClient(token);
             using var cts = new CancellationTokenSource();
+            var me = await botClient.GetMeAsync();
 
             // StartReceiving does not block the caller thread. Receiving is done on the ThreadPool.
             var receiverOptions = new ReceiverOptions
@@ -55,8 +56,6 @@ namespace Theo
                 HandleErrorAsync,
                 receiverOptions,
                 cancellationToken: cts.Token);
-
-            var me = await botClient.GetMeAsync();
 
             Console.WriteLine($"@{me.Username} is fully started");
             Console.ReadLine();
@@ -87,7 +86,7 @@ namespace Theo
                         replyToMessageId: update.Message.MessageId,
                         cancellationToken: cancellationToken);
                 }
-                else if (messageText.Contains("@BlondeEdgyBot") && (update.Message.Chat.Type == ChatType.Group || update.Message.Chat.Type == ChatType.Supergroup))
+                else if (messageText.Contains($"@{me.Username}") && (update.Message.Chat.Type == ChatType.Group || update.Message.Chat.Type == ChatType.Supergroup))
                 {
                     if (update.Message.ReplyToMessage != null)
                     {
