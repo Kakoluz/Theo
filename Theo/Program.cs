@@ -39,65 +39,75 @@ namespace Theo
             Console.ReadLine();
         }
 
-        static async System.Threading.Tasks.Task runBotAsync(string token)
+        static async Task runBotAsync(string token)
         {
             Random ran = new Random();
-            var botClient = new TelegramBotClient(token);
             using var cts = new CancellationTokenSource();
-            var me = await botClient.GetMeAsync();
-
-            // StartReceiving does not block the caller thread. Receiving is done on the ThreadPool.
-            var receiverOptions = new ReceiverOptions
+            try
             {
-                AllowedUpdates = { } // receive all update types
-            };
-            botClient.StartReceiving(
-                HandleUpdateAsync,
-                HandleErrorAsync,
-                receiverOptions,
-                cancellationToken: cts.Token);
+                var botClient = new TelegramBotClient(token);
+                var me = await botClient.GetMeAsync();
 
-            Console.WriteLine($"@{me.Username} is fully started");
-            Console.ReadLine();
-
-            // Send cancellation request to stop bot
-            cts.Cancel();
-
-            async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
-            {
-                // Only process Message updates: https://core.telegram.org/bots/api#message
-                if (update.Type != UpdateType.Message)
-                    return;
-
-                // Only process text messages
-                if (update.Message!.Type != MessageType.Text)
-                    return;
-
-                var chatId = update.Message.Chat.Id;
-                var messageText = update.Message.Text;
-                var messageLower = messageText.ToLower();
-
-                if (messageLower.Contains("shinnoh") || messageLower.Contains("shinoh") || messageLower.Contains("shinohh") || messageLower.Contains("sinoh") || messageLower.Contains("sinou") || messageLower.Contains("sinno") || messageLower.Contains("shino") || messageLower.Contains("shinnou") || messageLower.Contains("shinno"))
+                // StartReceiving does not block the caller thread. Receiving is done on the ThreadPool.
+                var receiverOptions = new ReceiverOptions
                 {
-                    Message sentMessage = await botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "Shinnofag\n\nhttps://www.youtube.com/watch?v=5Vf1G3vUJ5g&ab_channel=Jespoke",
-                        disableNotification: true,
-                        replyToMessageId: update.Message.MessageId,
-                        cancellationToken: cancellationToken);
+                    AllowedUpdates = { } // receive all update types
+                };
+                botClient.StartReceiving(
+                    HandleUpdateAsync,
+                    HandleErrorAsync,
+                    receiverOptions,
+                    cancellationToken: cts.Token);
+
+                Console.WriteLine($"@{me.Username} is fully started");
+                while (true)
+                {
+                    Console.ReadLine();
                 }
-                else if (messageText.Contains($"@{me.Username}") && (update.Message.Chat.Type == ChatType.Group || update.Message.Chat.Type == ChatType.Supergroup))
+                async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
                 {
-                    if (update.Message.ReplyToMessage != null)
+                    // Only process Message updates: https://core.telegram.org/bots/api#message
+                    if (update.Type != UpdateType.Message)
+                        return;
+
+                    // Only process text messages
+                    if (update.Message!.Type != MessageType.Text)
+                        return;
+
+                    var chatId = update.Message.Chat.Id;
+                    var messageText = update.Message.Text;
+                    var messageLower = messageText.ToLower();
+
+                    if (messageLower.Contains("shinnoh") || messageLower.Contains("shinoh") || messageLower.Contains("shinohh") || messageLower.Contains("sinoh") || messageLower.Contains("sinou") || messageLower.Contains("sinno") || messageLower.Contains("shino") || messageLower.Contains("shinnou") || messageLower.Contains("shinno"))
                     {
                         Message sentMessage = await botClient.SendTextMessageAsync(
                             chatId: chatId,
-                            text: lines[ran.Next(insults)],
+                            text: "Shinnofag\n\nhttps://www.youtube.com/watch?v=5Vf1G3vUJ5g&ab_channel=Jespoke",
                             disableNotification: true,
-                            replyToMessageId: update.Message.ReplyToMessage.MessageId,
+                            replyToMessageId: update.Message.MessageId,
                             cancellationToken: cancellationToken);
                     }
-                    else
+                    else if (messageText.Contains($"@{me.Username}") && (update.Message.Chat.Type == ChatType.Group || update.Message.Chat.Type == ChatType.Supergroup))
+                    {
+                        if (update.Message.ReplyToMessage != null)
+                        {
+                            Message sentMessage = await botClient.SendTextMessageAsync(
+                                chatId: chatId,
+                                text: lines[ran.Next(insults)],
+                                disableNotification: true,
+                                replyToMessageId: update.Message.ReplyToMessage.MessageId,
+                                cancellationToken: cancellationToken);
+                        }
+                        else
+                        {
+                            Message sentMessage = await botClient.SendTextMessageAsync(
+                                    chatId: chatId,
+                                    text: lines[ran.Next(insults)],
+                                    disableNotification: true,
+                                    cancellationToken: cancellationToken);
+                        }
+                    }
+                    else if (update.Message.Chat.Type == ChatType.Private)
                     {
                         Message sentMessage = await botClient.SendTextMessageAsync(
                                 chatId: chatId,
@@ -105,29 +115,30 @@ namespace Theo
                                 disableNotification: true,
                                 cancellationToken: cancellationToken);
                     }
-                }
-                else if (update.Message.Chat.Type == ChatType.Private)
-                {
-                    Message sentMessage = await botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: lines[ran.Next(insults)],
-                            disableNotification: true,
-                            cancellationToken: cancellationToken);
+
                 }
 
+                Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
+                {
+                    var ErrorMessage = exception switch
+                    {
+                        ApiRequestException apiRequestException
+                            => $"Telegram API Error:\n[{apiRequestException.ErrorCode}]\n{apiRequestException.Message}",
+                        _ => exception.ToString()
+                    };
+
+                    Console.WriteLine(ErrorMessage);
+                    return Task.CompletedTask;
+                }
             }
-
-            Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
+            catch (Exception e)
             {
-                var ErrorMessage = exception switch
-                {
-                    ApiRequestException apiRequestException
-                        => $"Telegram API Error:\n[{apiRequestException.ErrorCode}]\n{apiRequestException.Message}",
-                    _ => exception.ToString()
-                };
-
-                Console.WriteLine(ErrorMessage);
-                return Task.CompletedTask;
+                Console.WriteLine("Catched exception: " + e.Message + "\n\nRebooting Bot");
+            }
+            finally
+            {
+                // Send cancellation request to stop bot
+                cts.Cancel();
             }
         }
     }
