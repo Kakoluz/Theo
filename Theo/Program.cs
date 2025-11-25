@@ -43,8 +43,7 @@ namespace Theo
         {
             Random ran = new Random();
             var botClient = new TelegramBotClient(token);
-            using var cts = new CancellationTokenSource();
-            var me = await botClient.GetMeAsync();
+            var me = await botClient.GetMe();
 
             // StartReceiving does not block the caller thread. Receiving is done on the ThreadPool.
             var receiverOptions = new ReceiverOptions
@@ -76,30 +75,36 @@ namespace Theo
                 var chatId = update.Message.Chat.Id;
                 var messageText = update.Message.Text;
                 var messageLower = messageText.ToLower();
-
-                if (messageLower.Contains("shinnoh") || messageLower.Contains("shinoh") || messageLower.Contains("shinohh") || messageLower.Contains("sinoh") || messageLower.Contains("sinou") || messageLower.Contains("sinno") || messageLower.Contains("shino") || messageLower.Contains("shinnou") || messageLower.Contains("shinno"))
+                var ReplyParams = new ReplyParameters()
                 {
-                    Message sentMessage = await botClient.SendTextMessageAsync(
+                    ChatId = chatId,
+                    MessageId = update.Message.MessageId,
+                };
+
+                if (SinnohRegex().IsMatch(messageLower))
+                {
+                    Message sentMessage = await botClient.SendMessage(
                         chatId: chatId,
                         text: "Shinnofag\n\nhttps://www.youtube.com/watch?v=5Vf1G3vUJ5g&ab_channel=Jespoke",
                         disableNotification: true,
-                        replyToMessageId: update.Message.MessageId,
+                        replyParameters: ReplyParams,
                         cancellationToken: cancellationToken);
                 }
                 else if (messageText.Contains($"@{me.Username}") && (update.Message.Chat.Type == ChatType.Group || update.Message.Chat.Type == ChatType.Supergroup))
                 {
                     if (update.Message.ReplyToMessage != null)
                     {
-                        Message sentMessage = await botClient.SendTextMessageAsync(
+                        ReplyParams.MessageId = update.Message.ReplyToMessage.MessageId;
+                        Message sentMessage = await botClient.SendMessage(
                             chatId: chatId,
                             text: lines[ran.Next(insults)],
                             disableNotification: true,
-                            replyToMessageId: update.Message.ReplyToMessage.MessageId,
+                            replyParameters: ReplyParams,
                             cancellationToken: cancellationToken);
                     }
                     else
                     {
-                        Message sentMessage = await botClient.SendTextMessageAsync(
+                        Message sentMessage = await botClient.SendMessage(
                                 chatId: chatId,
                                 text: lines[ran.Next(insults)],
                                 disableNotification: true,
@@ -108,7 +113,7 @@ namespace Theo
                 }
                 else if (update.Message.Chat.Type == ChatType.Private)
                 {
-                    Message sentMessage = await botClient.SendTextMessageAsync(
+                    Message sentMessage = await botClient.SendMessage(
                             chatId: chatId,
                             text: lines[ran.Next(insults)],
                             disableNotification: true,
@@ -130,5 +135,8 @@ namespace Theo
                 return Task.CompletedTask;
             }
         }
+
+        [GeneratedRegex(@"\b[sS]h?in{1,2}oh\b")]
+        private static partial Regex SinnohRegex();
     }
 }
