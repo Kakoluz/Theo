@@ -1,0 +1,8 @@
+services:
+  theo:
+    build: .
+    container_name: theo
+    restart: unless-stopped
+    volumes:
+      - ./token.txt:/app/token.txt:ro
+      - ./insults.txt:/app/insults.txt:ro
