@@ -1,66 +1,82 @@
 ﻿using System;
+using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
-using Telegram.Bot.Extensions.Polling;
+using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
 namespace Theo
 {
-    class Program
+    partial class Program
     {
-        static string[] lines;
-        static int insults = 0;
+        static string[]? Lines;
+        static int Insults;
+        static readonly CancellationTokenSource TokenSource = new();
+        static readonly SemaphoreSlim Semaphore = new(0, 1);
+
         static void Main(string[] args)
         {
-            if (args.Length != 3)
+            if (args.Length != 2)
             {
-                string token = System.IO.File.ReadAllText(args[0]);
-                lines = System.IO.File.ReadAllLines(args[1]);
-                foreach (string s in lines)
-                {
-                    ++insults;
-                }
-                while (true)
-                {
-                    try
-                    {
-                        runBotAsync(token).Wait();
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Catched exception: " + e.Message + "\n\nRebooting Bot");
-                    }
-                }
+                Console.WriteLine("Usage: Theo <token file> <insults file>");
+                return;
             }
-            Console.WriteLine("Invalid arguments");
-            Console.ReadLine();
+
+            var tokenPath = Path.GetFullPath(args[0]);
+            if (!System.IO.File.Exists(tokenPath))
+            {
+                Console.Error.WriteLine($"{tokenPath} file not found");
+                return;
+            }
+            var insultsPath = Path.GetFullPath(args[1]);
+            if (!System.IO.File.Exists(insultsPath))
+            {
+                Console.Error.WriteLine($"{insultsPath} file not found");
+                return;
+            }
+
+            string token = System.IO.File.ReadAllText(tokenPath).Trim();
+            Lines = System.IO.File.ReadAllLines(insultsPath);
+            Insults = Lines.Length;
+            Console.CancelKeyPress += CancelationRequest;
+            try
+            {
+                _ = RunBotAsync(token);
+                Semaphore.Wait(TokenSource.Token);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Catched exception: " + e.Message + "\n\nRebooting Bot");
+            }
         }
 
-        static async System.Threading.Tasks.Task runBotAsync(string token)
+        private static void CancelationRequest(object? sender, ConsoleCancelEventArgs? eventArgs)
         {
-            Random ran = new Random();
+            TokenSource.Cancel();
+        }
+
+        static async Task RunBotAsync(string token)
+        {
+            Random ran = new();
             var botClient = new TelegramBotClient(token);
             var me = await botClient.GetMe();
 
             // StartReceiving does not block the caller thread. Receiving is done on the ThreadPool.
             var receiverOptions = new ReceiverOptions
             {
-                AllowedUpdates = { } // receive all update types
+                AllowedUpdates = [UpdateType.Message] // receive message update types
             };
             botClient.StartReceiving(
                 HandleUpdateAsync,
                 HandleErrorAsync,
                 receiverOptions,
-                cancellationToken: cts.Token);
+                cancellationToken: TokenSource.Token);
 
             Console.WriteLine($"@{me.Username} is fully started");
-            Console.ReadLine();
-
-            // Send cancellation request to stop bot
-            cts.Cancel();
 
             async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
             {
@@ -73,7 +89,7 @@ namespace Theo
                     return;
 
                 var chatId = update.Message.Chat.Id;
-                var messageText = update.Message.Text;
+                var messageText = update.Message.Text ?? "";
                 var messageLower = messageText.ToLower();
                 var ReplyParams = new ReplyParameters()
                 {
@@ -85,11 +101,13 @@ namespace Theo
                 {
                     Message sentMessage = await botClient.SendMessage(
                         chatId: chatId,
-                        text: "Shinnofag\n\nhttps://www.youtube.com/watch?v=5Vf1G3vUJ5g&ab_channel=Jespoke",
+                        text: "Sinnohfag\n\nhttps://www.youtube.com/watch?v=5Vf1G3vUJ5g",
                         disableNotification: true,
                         replyParameters: ReplyParams,
                         cancellationToken: cancellationToken);
+                    return;
                 }
+
                 else if (messageText.Contains($"@{me.Username}") && (update.Message.Chat.Type == ChatType.Group || update.Message.Chat.Type == ChatType.Supergroup))
                 {
                     if (update.Message.ReplyToMessage != null)
@@ -97,7 +115,7 @@ namespace Theo
                         ReplyParams.MessageId = update.Message.ReplyToMessage.MessageId;
                         Message sentMessage = await botClient.SendMessage(
                             chatId: chatId,
-                            text: lines[ran.Next(insults)],
+                            text: Lines![ran.Next(Insults)],
                             disableNotification: true,
                             replyParameters: ReplyParams,
                             cancellationToken: cancellationToken);
@@ -106,7 +124,7 @@ namespace Theo
                     {
                         Message sentMessage = await botClient.SendMessage(
                                 chatId: chatId,
-                                text: lines[ran.Next(insults)],
+                                text: Lines![ran.Next(Insults)],
                                 disableNotification: true,
                                 cancellationToken: cancellationToken);
                     }
@@ -115,7 +133,7 @@ namespace Theo
                 {
                     Message sentMessage = await botClient.SendMessage(
                             chatId: chatId,
-                            text: lines[ran.Next(insults)],
+                            text: Lines![ran.Next(Insults)],
                             disableNotification: true,
                             cancellationToken: cancellationToken);
                 }
